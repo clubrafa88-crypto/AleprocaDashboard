@@ -1,8 +1,0 @@
-{
-  "name": "kpi-dashboard",
-  "version": "1.0.0",
-  "description": "KPI Dashboard con datos desde SharePoint",
-  "dependencies": {
-    "xlsx": "^0.18.5"
-  }
-}
