@@ -534,34 +534,40 @@ function mkChart(id, type, data, options) {
 }
 
 /* ═══════════════════════════════════════════════
-   SYNC: Call Netlify Function (server-side proxy)
+   SYNC: Call Netlify proxy → parse Excel in browser
 ════════════════════════════════════════════════ */
 async function handleSync() {
   setSyncStatus('loading', '⏳ Sincronizando con Excel…');
   showOverlay('Descargando datos actualizados…');
   try {
-    // Call our own Netlify serverless function — no CORS issues
+    // The Netlify function proxies the SharePoint Excel and returns it as base64
     const resp = await fetch('/.netlify/functions/sync-excel', { cache: 'no-store' });
-    const json = await resp.json();
 
-    if (!resp.ok || !json.ok) {
-      throw new Error(json.error || `HTTP ${resp.status}`);
+    if (!resp.ok) {
+      let errMsg = `HTTP ${resp.status}`;
+      try { const j = await resp.json(); errMsg = j.error || errMsg; } catch {}
+      throw new Error(errMsg);
     }
 
-    if (!json.data || json.data.length === 0) {
-      throw new Error('El servidor no devolvió datos. Verifica el archivo Excel.');
+    // Response is raw binary — get as ArrayBuffer and parse with CDN SheetJS
+    const buf = await resp.arrayBuffer();
+    if (buf.byteLength < 100) throw new Error('Archivo vacío o respuesta inválida del servidor');
+
+    const parsed = parseXlsxBuffer(buf);
+    if (!parsed || parsed.length === 0) {
+      throw new Error('No se encontraron datos. Verifica la hoja "KPI críticos planta de empaque".');
     }
 
-    rawData = json.data;
-    const last = json.data[json.data.length - 1];
+    rawData = parsed;
+    const last = parsed[parsed.length - 1];
     document.getElementById('lastUpdate').textContent =
-      `Último registro: ${fmtDate(last.date)} · Sincronizado ${new Date().toLocaleTimeString('es-EC')} · ${json.count} días`;
-    setSyncStatus('ok', `✅ ${json.count} días cargados — hoja: "${json.sheet}" — último: ${fmtDate(last.date)}`);
+      `Último registro: ${fmtDate(last.date)} · Sincronizado ${new Date().toLocaleTimeString('es-EC')} · ${parsed.length} días`;
+    setSyncStatus('ok', `✅ ${parsed.length} días cargados — último: ${fmtDate(last.date)}`);
     applyPillFilter(activePillDays);
   } catch (err) {
     console.error('Sync error:', err);
-    setSyncStatus('err', `❌ Error: ${err.message}`);
-    alert(`No se pudo sincronizar: ${err.message}\n\nAlternativa: usa el botón "Cargar Archivo" con tu Excel descargado.`);
+    setSyncStatus('err', `❌ ${err.message}`);
+    alert(`No se pudo sincronizar:\n${err.message}\n\nAlternativa: usa "Cargar Archivo" con tu Excel descargado.`);
   } finally {
     hideOverlay();
   }
