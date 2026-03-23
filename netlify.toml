@@ -1,7 +1,7 @@
 [build]
   base = "dashboard-deploy"
-    publish = "dashboard-deploy"
-      command = "npm install"
+  publish = "dashboard-deploy"
+  command = "npm install"
 
-      [functions]
-        directory = "dashboard-deploy/netlify/functions"
+[functions]
+  directory = "dashboard-deploy/netlify/functions"
